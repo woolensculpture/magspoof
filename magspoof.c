@@ -13,8 +13,8 @@
  * - Easy to build using Arduino or ATtiny
  *
  */
-
-#include <avr/sleep.h>
+// this code is meant to be compiled with the arduino library and/or environment while still using lower level avr commands
+#include <avr/sleep.h> 
 #include <avr/interrupt.h>
 
 #define PIN_A 0
@@ -24,28 +24,36 @@
 #define BUTTON_PIN 2
 #define CLOCK_US 200
 
-#define BETWEEN_ZERO 53 // 53 zeros between track1 & 2
+#define BETWEEN_ZERO 53 // 53 zeros between tracks 1 & 2
 
 #define TRACKS 2
 
 // consts get stored in flash as we don't adjust them
 const char* tracks[] = {
-"%B123456781234567^LASTNAME/FIRST^YYMMSSSDDDDDDDDDDDDDDDDDDDDDDDDD?\0", // Track 1
-";123456781234567=YYMMSSSDDDDDDDDDDDDDD?\0" // Track 2
+"%B123456781234567^LASTNAME/FIRST^YYMMSSSDDDDDDDDDDDDDDDDDDDDDDDDD?\0", // Track 1 of 3 on the magnetic stripe
+";123456781234567=YYMMSSSDDDDDDDDDDDDDD?\0" // Track 2 of 3 on the magnetic stripe
 };
+// Track 3 on the magnetic stripe is rarely used and only contains info on the cardholder usually
 
-char revTrack[41];
+/**
+ * Since the hbridge can only replicate one magnetic stripe at a time, the second stripe is reversed then read out after the 
+ * first stripe. This simulates the magnetic card being swiped up then down repeatedly and is enough to fool most card readers.
+ */
+char revTrack[41]; // the location for storing the reverse of track 2 for the downward swipe
 
-const int sublen[] = { 
-  32, 48, 48 };
-const int bitlen[] = { 
-  7, 5, 5 };
+/** there are 3 different formats that a magnetic card can follow, one uses traditional ascii-128 character formatting and is 32
+ * characters in length per stripe, the others follows the older DEC format which is only 6 bits compared to 8 and have 48 characters
+ * per stripe. See https://en.wikipedia.org/wiki/Magnetic_stripe_card#Financial_cards for a more indepth explaination.
+ */
+const int sublen[] = { 32, 48, 48 }; // these constants are the number of characters for the card format
+const int bitlen[] = { 7, 5, 5 };    // these constants are the encoding size for the characters(8 vs. 6 bits) corresponding the
+                                     // formats of sublen.
 
-unsigned int curTrack = 0;
-int dir;
+unsigned int curTrack = 0; // which track is currently being written
+int dir; 
 
-void setup()
-{
+void setup(){
+  // assigns each pin to it's intended purpose using arduino functionallity
   pinMode(PIN_A, OUTPUT);
   pinMode(PIN_B, OUTPUT);
   pinMode(ENABLE_PIN, OUTPUT);
@@ -58,10 +66,8 @@ void setup()
   storeRevTrack(2);
 }
 
-void blink(int pin, int msdelay, int times)
-{
-  for (int i = 0; i < times; i++)
-  {
+void blink(int pin, int msdelay, int times){
+  for (int i = 0; i < times; i++){
     digitalWrite(pin, HIGH);
     delay(msdelay);
     digitalWrite(pin, LOW);
@@ -70,15 +76,14 @@ void blink(int pin, int msdelay, int times)
 }
 
 // send a single bit out
-void playBit(int sendBit)
-{
-  dir ^= 1;
-  digitalWrite(PIN_A, dir);
-  digitalWrite(PIN_B, !dir);
+// TODO determine the purpose and output of dir ^= 1 and !dir
+void playBit(int sendBit){
+  dir ^= 1; // xor with 1 and assignment to dir, either makes dir all zeros or more likely makes dir alter its first bit, needs further research.
+  digitalWrite(PIN_A, dir); // write the digital output of dir to the hbridge
+  digitalWrite(PIN_B, !dir); // write the logical inverse (hopefully)
   delayMicroseconds(CLOCK_US);
 
-  if (sendBit)
-  {
+  if (sendBit){
     dir ^= 1;
     digitalWrite(PIN_A, dir);
     digitalWrite(PIN_B, !dir);
