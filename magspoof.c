@@ -75,12 +75,12 @@ void blink(int pin, int msdelay, int times){
   }
 }
 
-// send a single bit out
+// send a single bit out(need to check, if so then sendbit should probably be boolean)
 // TODO determine the purpose and output of dir ^= 1 and !dir
 void playBit(int sendBit){
   dir ^= 1; // xor with 1 and assignment to dir, either makes dir all zeros or more likely makes dir alter its first bit, needs further research.
   digitalWrite(PIN_A, dir); // write the digital output of dir to the hbridge
-  digitalWrite(PIN_B, !dir); // write the logical inverse (hopefully)
+  digitalWrite(PIN_B, !dir); // write the logical inverse (hopefully) increasing the output of the hbridge
   delayMicroseconds(CLOCK_US);
 
   if (sendBit){
@@ -89,26 +89,25 @@ void playBit(int sendBit){
     digitalWrite(PIN_B, !dir);
   }
   delayMicroseconds(CLOCK_US);
-
 }
 
-// when reversing
-void reverseTrack(int track)
-{
+// plays reverse of the track given to it
+void reverseTrack(int track){
   int i = 0;
   track--; // index 0
   dir = 0;
 
-  while (revTrack[i++] != '\0');
-  i--;
-  while (i--)
-    for (int j = bitlen[track]-1; j >= 0; j--)
+  while (revTrack[i++] != '\0'); // finds the end of the track denoted by a null character
+  i--; // goes back one space to the last character of the stripe
+  while (i--){
+    for (int j = bitlen[track]-1; j >= 0; j--){
       playBit((revTrack[i] >> j) & 1);
+    }
+  }
 }
 
 // plays out a full track, calculating CRCs and LRC
-void playTrack(int track)
-{
+void playTrack(int track){
   int tmp, crc, lrc = 0;
   track--; // index 0
   dir = 0;
@@ -120,14 +119,11 @@ void playTrack(int track)
   for (int i = 0; i < 25; i++)
     playBit(0);
 
-  //
-  for (int i = 0; tracks[track][i] != '\0'; i++)
-  {
+  for (int i = 0; tracks[track][i] != '\0'; i++){
     crc = 1;
     tmp = tracks[track][i] - sublen[track];
 
-    for (int j = 0; j < bitlen[track]-1; j++)
-    {
+    for (int j = 0; j < bitlen[track]-1; j++){
       crc ^= tmp & 1;
       lrc ^= (tmp & 1) << j;
       playBit(tmp & 1);
@@ -139,8 +135,7 @@ void playTrack(int track)
   // finish calculating and send last "byte" (LRC)
   tmp = lrc;
   crc = 1;
-  for (int j = 0; j < bitlen[track]-1; j++)
-  {
+  for (int j = 0; j < bitlen[track]-1; j++){
     crc ^= tmp & 1;
     playBit(tmp & 1);
     tmp >>= 1;
@@ -152,28 +147,27 @@ void playTrack(int track)
   {
     // if track 1, also play track 2 in reverse
     // zeros in between
-    for (int i = 0; i < BETWEEN_ZERO; i++)
+    for (int i = 0; i < BETWEEN_ZERO; i++){
       playBit(0);
-
+   }
     // send second track in reverse
     reverseTrack(2);
   }
 
   // finish with 0's
-  for (int i = 0; i < 5 * 5; i++)
+  for (int i = 0; i < 5 * 5; i++){
     playBit(0);
-
+  }
+  
   digitalWrite(PIN_A, LOW);
   digitalWrite(PIN_B, LOW);
   digitalWrite(ENABLE_PIN, LOW);
-
 }
 
 
 
 // stores track for reverse usage later
-void storeRevTrack(int track)
-{
+void storeRevTrack(int track){
   int i, tmp, crc, lrc = 0;
   track--; // index 0
   dir = 0;
